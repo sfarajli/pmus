@@ -12,6 +12,11 @@
 #define music2 "sexyback.opus"
 #define music3 "tillicollapse.opus"
 #define music4 "drop.opus"
+#define music5 "carelesswhisper.m4a"
+#define music6 "justthetwoofus.m4a"
+#define music7 "onlyyou.m4a"
+#define music8 "itsamansworld.m4a"
+#define music9 "nientedadire.mp3"
 
 Display *display;
 
@@ -61,7 +66,7 @@ int main() {
 
 		if (event.type == KeyPress) {
 			if (isplaying) {
-				kill(pid, 9);					
+				kill(pid, 9);
 				return 0;
 			}
 
@@ -77,6 +82,21 @@ int main() {
 					break;
 				case 13:
 					musicfile = music4;
+					break;
+				case 14:
+					musicfile = music5;
+					break;
+				case 15:
+					musicfile = music6;
+					break;
+				case 16:
+					musicfile = music7;
+					break;
+				case 17:
+					musicfile = music8;
+					break;
+				case 18:
+					musicfile = music9;
 					break;
 				default:
 					return 1;
