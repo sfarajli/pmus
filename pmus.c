@@ -1,122 +1,113 @@
 #include <X11/Xlib.h>
+#include <X11/extensions/XTest.h>
+#include <X11/keysym.h>
 #include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include <unistd.h>
 #include <sys/wait.h>
 #include <time.h>
-// #include <signal.h>
+#include <unistd.h>
 
-#define music1 "gimmemore.opus"
-#define music2 "sexyback.opus"
-#define music3 "tillicollapse.opus"
-#define music4 "drop.opus"
-#define music5 "carelesswhisper.m4a"
-#define music6 "justthetwoofus.m4a"
-#define music7 "onlyyou.m4a"
-#define music8 "itsamansworld.m4a"
-#define music9 "nientedadire.mp3"
+#include "config.h"
 
-Display *display;
+#define EXIT_CLEANUP(status)                             \
+	do {                                             \
+		printf("Exiting.\n");                    \
+		XUngrabKeyboard(display, CurrentTime);   \
+		XCloseDisplay(display);                  \
+		return (status);                         \
+	} while (0)
 
-static void
-grabkeyboard(void)
-{
-	struct timespec ts = { .tv_sec = 0, .tv_nsec = 1000000  };
-	int i;
+#define ARRAY_LEN(arr) (sizeof(arr) / sizeof((arr)[0]))
 
-	/* try to grab keyboard, we may have to wait for another process to ungrab */
-	for (i = 0; i < 1000; i++) {
-		if (XGrabKeyboard(display, DefaultRootWindow(display), True, GrabModeAsync,
-		                  GrabModeAsync, CurrentTime) == GrabSuccess)
-			return;
-		nanosleep(&ts, NULL);
+static int play_music(char *, pid_t *);
+static void GrabKeyboard(void);
+static void die(char *);
+
+static Window root;
+static Display *display;
+
+int main() {
+	KeySym keysym;
+	XEvent event;
+	pid_t pid;
+	int isplaying = 0;
+
+	GrabKeyboard();
+	while (1) {
+		XNextEvent(display, &event);
+		if (event.type != KeyPress)
+			continue;
+		keysym = XLookupKeysym(&event.xkey, 0);
+
+
+		if (isplaying) {
+			kill(pid, 9);
+			EXIT_CLEANUP(0);
+		}
+
+		int len = ARRAY_LEN(binding);
+		for (int i = 0; i < len ; i++) {
+			printf("%i is pressed %i expected\n", keysym, binding[i].keysym);
+			if (keysym == binding[i].keysym) {
+				play_music(binding[i].key, &pid);
+				isplaying = 1;
+			}
+		}
+
+		if (!isplaying) {
+			EXIT_CLEANUP(1);
+		}
+
+		XFlush(display);
 	}
+	return 0;
+}
 
-	fprintf(stderr, "Failed to grab the keyboard\n");
+void
+die(char *errmsg)
+{
+	fprintf(stderr, "%s\n", errmsg);
 	exit(1);
 }
 
-int main() {
-	// Display *display;
-	Window root_window;
-	XEvent event;
+void
+GrabKeyboard(void)
+{
+	display = XOpenDisplay(NULL);
+	if (!display)
+		die("Failed to open Xdisplay");
+
+	struct timespec ts = { .tv_sec = 0, .tv_nsec = 1000000  };
+
+	root = DefaultRootWindow(display);
+	/* Try to grab keyboard, we may have to wait for another process to ungrab */
+	for (int i = 0; i < 1000; i++) {
+		if (XGrabKeyboard(display, root, True, GrabModeAsync, GrabModeAsync, CurrentTime) == GrabSuccess)
+			return;
+
+		nanosleep(&ts, NULL);
+	}
+	die("Failed to grab keyboard");
+}
+
+int
+play_music(char *musicfile, pid_t *pid)
+{
+	char *args[] = {MUSIC_PLAYER, NULL, NULL};
 	struct passwd *pw = getpwuid(getuid());
 	const char *homedir = pw->pw_dir;
-	char *args[] = {"mpv", NULL, NULL};
-	char *musicfile;
-	int isplaying = 0;
-	pid_t pid;
 
-	// Open the X display
-	display = XOpenDisplay(NULL);
-	if (display == NULL) {
-		fprintf(stderr, "Unable to open X display\n");
-		exit(1);
+
+	char file[256];
+	sprintf(file, "%s/%s/%s", homedir, MUSIC_DIRECTORY, musicfile);
+	args[1] = file;
+
+	*pid = fork();
+	if (*pid == 0)  {
+		XUngrabKeyboard(display, CurrentTime);
+		execvp(MUSIC_PLAYER, args);
 	}
-
-	// Get the root window (the desktop window)
-	root_window = DefaultRootWindow(display);
-
-	grabkeyboard();
-
-	while (1) {
-		XNextEvent(display, &event);
-
-		if (event.type == KeyPress) {
-			if (isplaying) {
-				kill(pid, 9);
-				return 0;
-			}
-
-			switch (event.xkey.keycode) {
-				case 10:
-					musicfile = music1;
-					break;
-				case 11:
-					musicfile = music2;
-					break;
-				case 12:
-					musicfile = music3;
-					break;
-				case 13:
-					musicfile = music4;
-					break;
-				case 14:
-					musicfile = music5;
-					break;
-				case 15:
-					musicfile = music6;
-					break;
-				case 16:
-					musicfile = music7;
-					break;
-				case 17:
-					musicfile = music8;
-					break;
-				case 18:
-					musicfile = music9;
-					break;
-				default:
-					return 1;
-
-			}
-			char file[256];
-			sprintf(file, "%s/.local/bin/music/%s", homedir, musicfile);
-			args[1] = file;
-
-			isplaying = 1;
-			pid = fork();
-			if (pid == 0)  {
-				XUngrabKeyboard(display, CurrentTime);
-				execvp("mpv", args);
-			}
-		}
-	}
-
-	XUngrabKeyboard(display, CurrentTime);
-	printf("Keyboard released.\n");
-	XCloseDisplay(display);
 	return 0;
 }
