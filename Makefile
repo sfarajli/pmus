@@ -5,7 +5,7 @@ PREFIX ?= ~/.local
 pmus: pmus.c
 	gcc -lX11 $< -o $@
 
-install: 
+install: pmus
 	cp -f pmus ${DESTDIR}${PREFIX}/bin
 
 clean:
